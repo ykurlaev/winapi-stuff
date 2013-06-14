@@ -11,9 +11,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{F5C35F97-15F1-4605-9016-0A4E5B7DE367}</ProjectGuid>
+    <ProjectGuid>{F5C35F97-15F1-4605-9016-1A4E4B7DE367}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>BMP_Viewer</RootNamespace>
+    <RootNamespace>AVI_Viewer</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -48,7 +48,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -75,16 +75,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="image.cpp" />
-    <ClCompile Include="main.cpp" />
     <ClCompile Include="imagewindow.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="image.h" />
     <ClInclude Include="imagewindow.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="bmp_viewer.rc" />
+    <ResourceCompile Include="avi_viewer.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

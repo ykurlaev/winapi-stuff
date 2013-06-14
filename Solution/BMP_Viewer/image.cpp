@@ -1,138 +1,196 @@
 #include "image.h"
-#include "bmpheader.h"
 #include <cstring>
+#include <algorithm>
 #include <stdexcept>
 
+using namespace YQ;
+
+using std::swap;
 using std::istream;
 using std::ostream;
-using std::ios_base;
 using std::runtime_error;
 
-static uint32_t readUncompressedData(Image *image, const BMPHeader& header, const uint32_t *palette, istream& stream)
+static void readUncompressedData(const uint8_t *buffer, const uint32_t *palette,
+								 uint8_t bpp, bool bottomToTop, Image& image)
 {
-    uint32_t lineSize = ((header.width * header.bpp + 31) / 32) * 4;
-    unsigned char *buffer = new unsigned char[lineSize * header.height];
-    memset(buffer, 0, lineSize * header.height);
-    stream.read(reinterpret_cast<char *>(buffer), lineSize * header.height);
-    for(uint32_t y = 0; y < header.height; y++)
+	long width = image.header.biWidth;
+	long height = image.header.biHeight;
+    uint32_t lineSize = ((width * bpp + 31) / 32) * 4; // round to 4 bytes up
+    for(long y = 0; y < height; y++)
     {
-        for(uint32_t x = 0; x < header.width; x++)
+        for(long x = 0; x < width; x++)
         {
-			uint32_t ry = header.bottomToTop ? y : header.height - y;
-            uint32_t color;
-            if(header.bpp >= 8)
+			long ry = bottomToTop ? y : height - y;
+            uint32_t color = 0;
+            if(bpp >= 8)
             {
-				color = 0;
-                for(int i = 0; i < header.bpp / 8; i++)
+                for(int i = 0; i < bpp / 8; i++)
                 {
-                    color = color | (buffer[y * lineSize + x * header.bpp / 8 + i] << i * 8);
+					uint8_t byte = buffer[y * lineSize + x * (bpp / 8) + i];
+                    color = color | (byte << i * 8);
                 }
             }
 			else
 			{
-				color = (buffer[y * lineSize + x * header.bpp / 8] >> ((8 - (x + 1) * header.bpp) % 8))
-                             & (UINT8_MAX >> (8 - (header.bpp % 8)));
+				uint8_t byte = buffer[y * lineSize + (x * bpp) / 8];
+				color = (byte >> ((8 - (((x + 1) * bpp) % 8)) % 8)) // pixels in byte are stored from high bits to low
+					    & (0xFF >> (8 - bpp));
 			}
-            if(palette)
+            if(bpp <= 8)
             {
                 color = palette[color];
             }
-            if(header.bChannel.size == 0)
-            {
-                (*image)[ry][x][Image::B] = UINT8_MAX;
-            }
-            else
-            {
-                (*image)[ry][x][Image::B] = (color >> header.bChannel.offset) & (UINT32_MAX >> (32 - header.bChannel.size))
-                                             * UINT8_MAX / ((1 << header.bChannel.size) - 1);
-            }
-            if(header.gChannel.size == 0)
-            {
-                (*image)[ry][x][Image::G] = UINT8_MAX;
-            }
-            else
-            {
-                (*image)[ry][x][Image::G] = (color >> header.gChannel.offset) & (UINT32_MAX >> (32 - header.gChannel.size))
-                                             * UINT8_MAX / ((1 << header.gChannel.size) - 1);
-            }
-            if(header.rChannel.size == 0)
-            {
-                (*image)[ry][x][Image::R] = UINT8_MAX;
-            }
-            else
-            {
-                (*image)[ry][x][Image::R] = (color >> header.rChannel.offset) & (UINT32_MAX >> (32 - header.rChannel.size))
-                                             * UINT8_MAX / ((1 << header.rChannel.size) - 1);
-            }
-            if(header.aChannel.size == 0)
-            {
-                (*image)[ry][x][Image::A] = UINT8_MAX;
-            }
-            else
-            {
-                (*image)[ry][x][Image::A] = (color >> header.aChannel.offset) & (UINT32_MAX >> (32 - header.aChannel.size))
-                                             * UINT8_MAX / ((1 << header.aChannel.size) - 1);
-            }
+			for(int i = 0; i < 3; i++)
+			{
+				if(bpp == 16) // 5 bits per channel
+				{
+					image[ry][x][i] = (color >> (i * 5) & 0x1F) // 0x1F = binary 11111 (5x1)
+									  * 0xFF / 0x1F; // normalize to 8 bpc
+				}
+				else // 8 bits per channel
+				{
+					image[ry][x][i] = color >> (i * 8) & 0xFF;
+				}
+			}
+			image[ry][x][Image::A] = 0xFF; // alpha channel is ignored
         }
     }
-    delete[] buffer;
-    return lineSize * header.height;
 }
 
-istream& operator>>(istream& stream, Image& image)
+istream& YQ::operator>>(istream& stream, Image& image)
 {
     if(image.pixels != NULL)
     {
         delete[] image.pixels;
-        image.pixels = NULL;
+		image = Image();
     }
-    image.width = 0;
-    image.height = 0;
-    BMPHeader header;
-    stream >> header;
-    uint32_t *palette = NULL;
-    uint32_t paletteSize = header.paletteSize * header.paletteElementSize;
-    if(header.paletteSize > 0)
-    {
-        unsigned char *paletteRaw = new unsigned char[paletteSize];
-        memset(paletteRaw, 0, paletteSize);
-        stream.read(reinterpret_cast<char *>(paletteRaw), paletteSize);
-        palette = new uint32_t[header.paletteSize];
-		memset(palette, 0, header.paletteSize * 4);
-        for(uint16_t i = 0; i < header.paletteSize; i++)
-        {
-            for(int j = 0; j < header.paletteElementSize; j++)
-            {
-                palette[i] = palette[i] | (paletteRaw[i * header.paletteElementSize + j] << j * 8);
-            }
-        }
-        delete paletteRaw;
-    }
-    stream.seekg(header.dataOffset - (header.headerSize + paletteSize), ios_base::cur);
-    image.width = header.width;
-    image.height = header.height;
-    image.pixels = new uint8_t[image.width * image.height][4];
-    memset(image.pixels, 0, image.width * image.height * 4);
-    uint32_t dataSize = 0;
-    if(header.compression == NO_COMPRESSION)
-    {
-        dataSize = readUncompressedData(&image, header, palette, stream);
-        stream.seekg(header.fileSize - (header.dataOffset + dataSize), ios_base::cur);
-    }
-    else
-    {
-        throw runtime_error("Compression is not supported yet");
-        stream.seekg(header.fileSize - (header.dataOffset + dataSize), ios_base::cur);
-    }
+    BITMAPFILEHEADER fileHeader;
+	stream.read(reinterpret_cast<char *>(&fileHeader), sizeof(fileHeader));
+	if(!stream.good())
+	{
+		throw runtime_error(stream.eof() ? "Not a BMP or corrupted file" : "Unknown I/O error");
+	}
+	if(fileHeader.bfType !=	0x4D42) // "BM" signature
+	{
+		throw runtime_error("Not a BMP file");
+	}
+	uint32_t bufferSize = fileHeader.bfSize - sizeof(fileHeader);
+	char *buffer = new char[bufferSize];
+	memset(buffer, 0, bufferSize);
+	stream.read(buffer, bufferSize);
+	uint32_t infoHeaderSize = *reinterpret_cast<uint32_t *>(buffer);
+	switch(infoHeaderSize)
+	{
+		case sizeof(BITMAPINFOHEADER):
+		case sizeof(BITMAPV4HEADER):
+		case sizeof(BITMAPV5HEADER): // alpha channel is ignored, even if alpha mask is present
+			break;
+		default:
+			throw runtime_error("Unsupported BMP header type");
+	}
+	BITMAPINFOHEADER *pInfoHeader = reinterpret_cast<BITMAPINFOHEADER *>(buffer);
+	image.header.biWidth = pInfoHeader->biWidth;
+	image.header.biHeight = pInfoHeader->biHeight;
+	bool bottomToTop = image.header.biHeight >= 0;
+	if(!bottomToTop)
+	{
+		image.header.biHeight = -image.header.biHeight;
+	}
+	if(pInfoHeader->biCompression != BI_RGB)
+	{
+		throw runtime_error("Compression is not supported");
+	}
+	uint8_t bpp = static_cast<uint8_t>(pInfoHeader->biBitCount);
+	if(bpp != 1 && bpp != 2 && bpp != 4 && bpp != 8 && bpp != 16 && bpp != 24 && bpp != 32)
+	{
+		throw runtime_error("Unsupported bpp");
+	}
+	image.pixels = new Image::Pixel[image.header.biWidth * image.header.biHeight * 4];
+	uint32_t *palette = reinterpret_cast<uint32_t *>(buffer + infoHeaderSize);
+	uint8_t *data = reinterpret_cast<uint8_t *>(buffer + fileHeader.bfOffBits - sizeof(fileHeader));
+	readUncompressedData(data, palette, bpp, bottomToTop, image);
+	delete[] buffer;
     return stream;
 }
 
-ostream& operator<<(ostream& stream, Image& image)
+ostream& YQ::operator<<(ostream& stream, Image& image)
 {
-    unsigned char *header = new unsigned char[FILE_HEADER_SIZE + V1_HEADER_SIZE];
-    writeBMPHeader(header, image.width, image.height);
-    stream.write(reinterpret_cast<char *>(header), FILE_HEADER_SIZE + V1_HEADER_SIZE);
-    delete[] header;
-    stream.write(reinterpret_cast<char *>(image.pixels), image.width * image.height * 4);
+	BITMAPFILEHEADER fileHeader;
+	memset(&fileHeader, 0, sizeof(fileHeader));
+	fileHeader.bfType = 0x4D42; // "BM"
+	uint32_t dataSize = image.header.biWidth * image.header.biHeight * 4;
+	fileHeader.bfOffBits = sizeof(fileHeader) + sizeof(image.header);
+	fileHeader.bfSize = fileHeader.bfOffBits + dataSize;
+	stream.write(reinterpret_cast<char *>(&fileHeader), sizeof(fileHeader));
+	if(!stream.good())
+	{
+		throw runtime_error("Unknown I/O error");
+	}
+	stream.write(reinterpret_cast<char *>(&image.header), sizeof(image.header));
+	if(!stream.good())
+	{
+		throw runtime_error("Unknown I/O error");
+	}
+    stream.write(reinterpret_cast<char *>(image.pixels), dataSize);
+	if(!stream.good())
+	{
+		throw runtime_error("Unknown I/O error");
+	}
     return stream;
+}
+
+Image::Image()
+: pixels(NULL)
+{
+	memset(&header, 0, sizeof(header));
+	header.biSize = sizeof(header);
+	header.biPlanes = 1;
+	header.biBitCount = 32;
+	header.biCompression = BI_RGB;
+	header.biXPelsPerMeter = 3780; // 96 dpi
+	header.biYPelsPerMeter = 3780;
+}
+
+Image::~Image()
+{
+	delete[] pixels;
+}
+
+void Image::flipX()
+{
+	for(long y = 0; y < header.biHeight; y++)
+	{
+		for(long x = 0; x < header.biWidth / 2; x++)
+		{
+			for(int i = 0; i < 4; i++)
+			{
+				swap((*this)[y][x][i], (*this)[y][header.biWidth - x][i]);
+			}
+		}
+	}
+}
+
+void Image::flipY()
+{
+	for(long y = 0; y < header.biHeight / 2; y++)
+	{
+		for(long x = 0; x < header.biWidth; x++)
+		{
+			for(int i = 0; i < 4; i++)
+			{
+				swap((*this)[y][x][i], (*this)[header.biHeight - y][x][i]);
+			}
+		}
+	}
+}
+
+void Image::invert(Channel channel)
+{
+	for(long y = 0; y < header.biHeight; y++)
+	{
+		for(long x = 0; x < header.biWidth; x++)
+		{
+			(*this)[y][x][channel] = 0xFF - (*this)[y][x][channel];
+		}
+	}
 }
