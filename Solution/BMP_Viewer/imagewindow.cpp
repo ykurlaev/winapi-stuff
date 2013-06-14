@@ -230,10 +230,10 @@ void ImageWindow::init(HINSTANCE hInstance)
 {
 	initialized = true;
 	LoadStringW(hInstance, IDC_YQ_IMAGE_WINDOW, winClass, sizeof(winClass));
-	LoadString(hInstance, IDS_YQ_IMAGE_WINDOW_TITLE, defaultTitle, sizeof(defaultTitle));
-	LoadString(hInstance, IDS_YQ_IMAGE_WINDOW_MASK_OPEN, openMask, sizeof(openMask));
-	LoadString(hInstance, IDS_YQ_IMAGE_WINDOW_MASK_SAVE, saveMask, sizeof(saveMask));
-	LoadString(hInstance, IDS_YQ_IMAGE_WINDOW_ERROR_MSG, errorMsg, sizeof(errorMsg));
+	LoadStringW(hInstance, IDS_YQ_IMAGE_WINDOW_TITLE, defaultTitle, sizeof(defaultTitle));
+	LoadStringW(hInstance, IDS_YQ_IMAGE_WINDOW_MASK_OPEN, openMask, sizeof(openMask));
+	LoadStringW(hInstance, IDS_YQ_IMAGE_WINDOW_MASK_SAVE, saveMask, sizeof(saveMask));
+	LoadStringW(hInstance, IDS_YQ_IMAGE_WINDOW_ERROR_MSG, errorMsg, sizeof(errorMsg));
 	WNDCLASSEXW windowClass;
 	memset(&windowClass, 0, sizeof(windowClass));
 	windowClass.cbSize = sizeof(windowClass);
