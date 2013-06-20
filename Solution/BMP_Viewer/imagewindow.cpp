@@ -233,7 +233,7 @@ void ImageWindow::init(HINSTANCE hInstance)
 	LoadStringW(hInstance, IDS_YQ_IMAGE_WINDOW_TITLE, defaultTitle, sizeof(defaultTitle));
 	LoadStringW(hInstance, IDS_YQ_IMAGE_WINDOW_MASK_OPEN, openMask, sizeof(openMask));
 	LoadStringW(hInstance, IDS_YQ_IMAGE_WINDOW_MASK_SAVE, saveMask, sizeof(saveMask));
-	LoadStringW(hInstance, IDS_YQ_IMAGE_WINDOW_ERROR_MSG, errorMsg, sizeof(errorMsg));
+	LoadStringW(hInstance, IDS_YQ_ERROR_MSG, errorMsg, sizeof(errorMsg));
 	WNDCLASSEXW windowClass;
 	memset(&windowClass, 0, sizeof(windowClass));
 	windowClass.cbSize = sizeof(windowClass);
@@ -242,7 +242,7 @@ void ImageWindow::init(HINSTANCE hInstance)
 	windowClass.hIconSm = LoadIconW(NULL, IDI_APPLICATION);
 	windowClass.hCursor = LoadCursorW(NULL, IDC_ARROW);
 	windowClass.hbrBackground = GetSysColorBrush(COLOR_3DFACE);
-	windowClass.lpszMenuName = MAKEINTRESOURCE(IDC_YQ_IMAGE_WINDOW);
+	windowClass.lpszMenuName = MAKEINTRESOURCEW(IDC_YQ_IMAGE_WINDOW);
 	windowClass.lpszClassName = winClass;
 	windowClass.lpfnWndProc = windowProc;
 	if(!RegisterClassExW(&windowClass))

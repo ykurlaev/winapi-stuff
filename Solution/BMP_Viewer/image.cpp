@@ -164,7 +164,7 @@ void Image::flipX()
 		{
 			for(int i = 0; i < 4; i++)
 			{
-				swap((*this)[y][x][i], (*this)[y][header.biWidth - x][i]);
+				swap((*this)[y][x][i], (*this)[y][header.biWidth - x - 1][i]);
 			}
 		}
 	}
@@ -178,7 +178,7 @@ void Image::flipY()
 		{
 			for(int i = 0; i < 4; i++)
 			{
-				swap((*this)[y][x][i], (*this)[header.biHeight - y][x][i]);
+				swap((*this)[y][x][i], (*this)[header.biHeight - y - 1][x][i]);
 			}
 		}
 	}
