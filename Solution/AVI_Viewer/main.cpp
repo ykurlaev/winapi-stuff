@@ -21,7 +21,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
 	icc.dwSize = sizeof(icc);
 	icc.dwICC = ~0;
 	InitCommonControlsEx(&icc);
-	AVIFileInit();
+	CoInitialize(NULL);
 	VideoDialog videoDialog(hInstance, nCmdShow);
 	MSG msg;
 	while(GetMessageW(&msg, NULL, 0, 0))
@@ -36,6 +36,6 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
 			DispatchMessageW(&msg);
 		}
 	}
-	AVIFileExit();
+	CoUninitialize();
 	return (int)msg.wParam;
 }

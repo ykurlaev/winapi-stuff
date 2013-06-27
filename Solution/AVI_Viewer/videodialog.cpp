@@ -7,160 +7,147 @@ using namespace YQ;
 using std::map;
 using std::runtime_error;
 
-void VideoDialog::onDrawItem(LPDRAWITEMSTRUCT dis)
+void VideoDialog::onDrawItem(LPDRAWITEMSTRUCT pDis)
 {
-	if(aviFile)
+	if(m_fileOpened)
 	{
-		aviFile->renderFrame(dis->hDC, dis->rcItem);
+		m_aviFile.renderFrame(pDis->hDC, pDis->rcItem);
 	}
 	else
 	{
-		FillRect(dis->hDC, &dis->rcItem, CreateSolidBrush(RGB(0, 0, 0)));
+		FillRect(pDis->hDC, &pDis->rcItem, CreateSolidBrush(RGB(0, 0, 0)));
 	}
 }
 
 void VideoDialog::onTick()
 {
-	if(aviFile)
+	if(m_fileOpened)
 	{
-		unsigned position = aviFile->seekNext();
-		SendMessage(trackbar, TBM_SETPOS, (WPARAM)TRUE, (LPARAM)(position / scale));
+		unsigned position = m_aviFile.seekNext();
+		SendMessage(m_hTrackbar, TBM_SETPOS, (WPARAM)TRUE, (LPARAM)(position / m_scale));
 		if(position == 0)
 		{
 			stop();
 		}
-		RedrawWindow(videoControl, NULL, NULL, RDW_INVALIDATE);
+		RedrawWindow(m_hVideoControl, NULL, NULL, RDW_INVALIDATE);
 	}
 }
 
 void VideoDialog::onScroll()
 {
-	aviFile->seek(SendMessage(trackbar, TBM_GETPOS, 0, 0));
-	RedrawWindow(videoControl, NULL, NULL, RDW_INVALIDATE);
+	if(m_fileOpened)
+	{
+		m_aviFile.seek(SendMessage(m_hTrackbar, TBM_GETPOS, 0, 0));
+		RedrawWindow(m_hVideoControl, NULL, NULL, RDW_INVALIDATE);
+	}
 }
 
 void VideoDialog::openFile()
 {
 	bool success = true;
 	WORD max = 0;
-	if(GetOpenFileNameW(&opFileName))
+	if(GetOpenFileNameW(&m_opFileName))
 	{
 		stop();
-		delete aviFile;
-		aviFile = NULL;
+		m_aviFile.close();
+		m_fileOpened = false;
 		try
 		{
-			aviFile = new AviFile(opFileName.lpstrFile, GetDC(videoControl));
-			unsigned length = aviFile->getLength();
-			scale = static_cast<float>(length) / 0xFFFF;
-			if(scale < 1)
+			m_aviFile.open(m_opFileName.lpstrFile, GetDC(m_hVideoControl));
+			unsigned length = m_aviFile.getLength();
+			m_scale = static_cast<float>(length) / 0xFFFF;
+			if(m_scale < 1)
 			{
-				scale = 1;
+				m_scale = 1;
 			}
-			max = static_cast<int>((length - 1) / scale);
+			max = static_cast<int>((length - 1) / m_scale);
+			m_fileOpened = true;
 		}
 		catch(runtime_error e)
 		{
 			success = false;
 			std::string s(e.what());
 			std::wstring ws(s.begin(), s.end());
-			MessageBoxW(0, ws.c_str(), errorMsg, MB_ICONERROR);
+			MessageBoxW(0, ws.c_str(), m_errorMsg, MB_ICONERROR);
 		}
 	}
-	EnableWindow(trackbar, success);
-	EnableWindow(playButton, success);
-	EnableWindow(stopButton, success);
-	SendMessageW(trackbar, TBM_SETRANGE, (WPARAM)TRUE, (LPARAM)MAKELONG(0, max));
-	SendMessage(trackbar, TBM_SETPOS, (WPARAM)TRUE, 0);
-	RedrawWindow(videoControl, NULL, NULL, RDW_INVALIDATE);
+	EnableWindow(m_hTrackbar, success);
+	EnableWindow(m_hPlayButton, success);
+	EnableWindow(m_hStopButton, success);
+	SendMessageW(m_hTrackbar, TBM_SETRANGE, (WPARAM)TRUE, (LPARAM)MAKELONG(0, max));
+	SendMessage(m_hTrackbar, TBM_SETPOS, (WPARAM)TRUE, 0);
+	RedrawWindow(m_hVideoControl, NULL, NULL, RDW_INVALIDATE);
 }
 
 void VideoDialog::play()
 {
-	if(aviFile && !playing)
+	if(m_fileOpened && !m_playing)
 	{
-		SetTimer(hWnd, TIMER_ID, aviFile->getMsPerFrame(), NULL);
-		playing = true;
+		SetTimer(m_hWnd, TIMER_ID, m_aviFile.getMsPerFrame(), NULL);
+		m_playing = true;
 	}
 }
 
 void VideoDialog::stop()
 {
-	if(aviFile && playing)
+	if(m_fileOpened && m_playing)
 	{
-		KillTimer(hWnd, TIMER_ID);
-		playing = false;
+		KillTimer(m_hWnd, TIMER_ID);
+		m_playing = false;
 	}
 }
 
 VideoDialog::VideoDialog(HINSTANCE hInstance, int nCmdShow)
-: aviFile(NULL), playing(false)
+: m_fileOpened(false), m_playing(false)
 {
-	if(!initialized) // ! No thread safety
-	{
-		init(hInstance);
-	}
-	hWnd = CreateDialogParamW(hInstance, MAKEINTRESOURCE(IDD_YQ_VIDEO_DIALOG), NULL, dialogProc, 0);
-	if(!hWnd)
+	LoadStringW(hInstance, IDS_YQ_VIDEO_DIALOG_MASK_OPEN, m_openMask, sizeof(m_openMask));
+	LoadStringW(hInstance, IDS_YQ_ERROR_MSG, m_errorMsg, sizeof(m_errorMsg));
+	m_hIcon = LoadIconW(NULL, MAKEINTRESOURCEW(IDI_APPLICATION));
+	m_hWnd = CreateDialogParamW(hInstance, MAKEINTRESOURCE(IDD_YQ_VIDEO_DIALOG), NULL, dialogProc, 0);
+	if(!m_hWnd)
 	{
 		DWORD error = GetLastError();
 		throw error;
 	}
-	fileName = new wchar_t[STRING_BUFSIZE];
-	memset(fileName, 0, STRING_BUFSIZE * sizeof(wchar_t));
-	memset(&opFileName, 0, sizeof(opFileName));
-	opFileName.lStructSize = sizeof(opFileName);
-	opFileName.hwndOwner = hWnd;
-	opFileName.nFilterIndex = 1;
-	opFileName.lpstrFile = fileName;
-	opFileName.nMaxFile = STRING_BUFSIZE;
-	opFileName.lpstrFilter = openMask;
-	opFileName.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-	windowMap[hWnd] = this;
-	SendMessageW(hWnd, WM_SETICON, ICON_SMALL, (LPARAM)icon);
-	SendMessageW(hWnd, WM_SETICON, ICON_BIG, (LPARAM)icon);
-	trackbar = GetDlgItem(hWnd, IDC_YQ_VIDEO_DIALOG_TRACKBAR);
-	playButton = GetDlgItem(hWnd, IDC_YQ_VIDEO_DIALOG_PLAY);
-	stopButton = GetDlgItem(hWnd, IDC_YQ_VIDEO_DIALOG_STOP);
-	videoControl = GetDlgItem(hWnd, IDC_YQ_VIDEO_CONTROL);
-	EnableWindow(trackbar, FALSE);
-	EnableWindow(playButton, FALSE);
-	EnableWindow(stopButton, FALSE);
-	ShowWindow(hWnd, nCmdShow);
-	UpdateWindow(hWnd);
+	m_fileName = new wchar_t[STRING_BUFSIZE];
+	memset(m_fileName, 0, STRING_BUFSIZE * sizeof(wchar_t));
+	memset(&m_opFileName, 0, sizeof(m_opFileName));
+	m_opFileName.lStructSize = sizeof(m_opFileName);
+	m_opFileName.hwndOwner = m_hWnd;
+	m_opFileName.nFilterIndex = 1;
+	m_opFileName.lpstrFile = m_fileName;
+	m_opFileName.nMaxFile = STRING_BUFSIZE;
+	m_opFileName.lpstrFilter = m_openMask;
+	m_opFileName.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+	sm_windowMap[m_hWnd] = this;
+	SendMessageW(m_hWnd, WM_SETICON, ICON_SMALL, (LPARAM)m_hIcon);
+	SendMessageW(m_hWnd, WM_SETICON, ICON_BIG, (LPARAM)m_hIcon);
+	m_hTrackbar = GetDlgItem(m_hWnd, IDC_YQ_VIDEO_DIALOG_TRACKBAR);
+	m_hPlayButton = GetDlgItem(m_hWnd, IDC_YQ_VIDEO_DIALOG_PLAY);
+	m_hStopButton = GetDlgItem(m_hWnd, IDC_YQ_VIDEO_DIALOG_STOP);
+	m_hVideoControl = GetDlgItem(m_hWnd, IDC_YQ_VIDEO_CONTROL);
+	EnableWindow(m_hTrackbar, FALSE);
+	EnableWindow(m_hPlayButton, FALSE);
+	EnableWindow(m_hStopButton, FALSE);
+	ShowWindow(m_hWnd, nCmdShow);
+	UpdateWindow(m_hWnd);
 }
 
 VideoDialog::~VideoDialog()
 {
 	stop();
-	delete[] fileName;
-	delete aviFile;
-	DestroyWindow(hWnd);
+	m_aviFile.close();
+	delete[] m_fileName;
+	DestroyWindow(m_hWnd);
 }
 
-bool VideoDialog::initialized = false;
-
-map<HWND, VideoDialog *> VideoDialog::windowMap;
-
-wchar_t VideoDialog::openMask[STRING_BUFSIZE];
-
-wchar_t VideoDialog::errorMsg[STRING_BUFSIZE];
-
-HICON VideoDialog::icon;
-
-void VideoDialog::init(HINSTANCE hInstance)
-{
-	initialized = true;
-	LoadStringW(hInstance, IDS_YQ_VIDEO_DIALOG_MASK_OPEN, openMask, sizeof(openMask));
-	LoadStringW(hInstance, IDS_YQ_ERROR_MSG, errorMsg, sizeof(errorMsg));
-	icon = LoadIconW(NULL, MAKEINTRESOURCEW(IDI_APPLICATION));
-}
+map<HWND, VideoDialog *> VideoDialog::sm_windowMap;
 
 BOOL CALLBACK VideoDialog::dialogProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	if(windowMap.find(hWnd) != windowMap.end())
+	if(sm_windowMap.find(hWnd) != sm_windowMap.end())
 	{
-		VideoDialog *dialog = windowMap[hWnd];
+		VideoDialog *dialog = sm_windowMap[hWnd];
 		switch(message)
 		{
 			case WM_DRAWITEM:
@@ -206,8 +193,8 @@ BOOL CALLBACK VideoDialog::dialogProc(HWND hWnd, UINT message, WPARAM wParam, LP
 				DestroyWindow(hWnd);
 				return TRUE;
 			case WM_DESTROY:
-				windowMap.erase(hWnd);
-				if(windowMap.empty())
+				sm_windowMap.erase(hWnd);
+				if(sm_windowMap.empty())
 				{
 					PostQuitMessage(0);
 				}
