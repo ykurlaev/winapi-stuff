@@ -17,25 +17,25 @@ using namespace YQ;
 
 int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
-	INITCOMMONCONTROLSEX icc;
-	icc.dwSize = sizeof(icc);
-	icc.dwICC = ~0;
-	InitCommonControlsEx(&icc);
-	CoInitialize(NULL);
-	VideoDialog videoDialog(hInstance, nCmdShow);
-	MSG msg;
-	while(GetMessageW(&msg, NULL, 0, 0))
-	{
-		if(msg.message == WM_QUIT)
-		{
-			break;
-		}
-		if(!IsDialogMessageW(GetForegroundWindow(), &msg))
-		{
-			TranslateMessage(&msg);
-			DispatchMessageW(&msg);
-		}
-	}
-	CoUninitialize();
-	return (int)msg.wParam;
+    INITCOMMONCONTROLSEX icc;
+    icc.dwSize = sizeof(icc);
+    icc.dwICC = ~0;
+    InitCommonControlsEx(&icc);
+    CoInitialize(NULL);
+    VideoDialog videoDialog(hInstance, nCmdShow);
+    MSG msg;
+    while(GetMessageW(&msg, NULL, 0, 0))
+    {
+        if(msg.message == WM_QUIT)
+        {
+            break;
+        }
+        if(!IsDialogMessageW(GetForegroundWindow(), &msg))
+        {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+    }
+    CoUninitialize();
+    return (int)msg.wParam;
 }
